@@ -12,14 +12,10 @@ set(SRC_DIR src)
 set(INC_DIR include)
 
 set(PROJECT_SOURCES
-        # .cpp files ---------------------------------------
-        ${SRC_DIR}/main.cpp
-
-        # .hpp files ---------------------------------------
-        ${INC_DIR}/TablePrinter.hpp
-)
+		"src/main.cpp"
+		"include/TablePrinter.hpp"
+		"include/Component.hpp"
+		"include/Component/Title.hpp" "include/Component/Headers.hpp")
 
 add_executable(table-printer ${PROJECT_SOURCES})
 target_link_libraries(table-printer PRIVATE fmt::fmt)
-
-
