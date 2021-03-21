@@ -1,14 +1,18 @@
 #include <iostream>
+#include <vector>
+#include <string>
 #include "TablePrinter.hpp"
-#include "Component/Title.hpp"
 
 int main()
 {
-    using namespace dmf::table;
+    using namespace dmf::tableprinter;
 
-    dmf::TablePrinter printer;
-    printer.setTitle("Test Table Title", Align::CENTER, 30);
-    printer.title()->title = "WHOOOOOOOOAHHH";
+    Printer printer;
+
+    printer.setTitle("Test Table Title", Align::CENTER, HPolicy::MAX, 30);
+    std::vector<std::string> headers{"header1", "header2", "header3"};
+    printer.setHeaders(headers, Align::CENTER, 20);
+
     printer.display();
 
     return 0;
