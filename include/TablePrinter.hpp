@@ -1,6 +1,5 @@
 #ifndef TABLEPRINTER_H
 #define TABLEPRINTER_H
-#include <boost/range/combine.hpp>
 #include <iostream>
 #include <vector>
 #include <string>
