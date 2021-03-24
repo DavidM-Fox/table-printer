@@ -1,19 +1,24 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <fmt/core.h>
 #include "TablePrinter.hpp"
 
 int main()
 {
     using namespace dmf::tableprinter;
 
-    Printer printer;
+    Printer printer("BTC: INTRADAY TIME SERIES EXAMPLE TITLE",
+                    {"Timestamp", "Open", "High", "Low", "Close", "Volume"});
+    for (auto &col : printer.columns)
+        col.setWidth(15);
+    printer.format();
+    printer.printHeading();
 
-    printer.setTitle("Test Table Title", Align::CENTER, HPolicy::MAX, 30);
-    std::vector<std::string> headers{"header1", "header2", "header3"};
-    printer.setHeaders(headers, Align::CENTER, 20);
+    std::vector<double> dat = {1615512600, 698.00, 699.00,
+                               698.71,     699.00, 11276};
 
-    printer.display();
+    printer.printDataRow(dat);
 
     return 0;
 }

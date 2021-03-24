@@ -1,5 +1,7 @@
 #ifndef TABLEPRINTER_H
 #define TABLEPRINTER_H
+#include <boost/range/combine.hpp>
+#include <iostream>
 #include <vector>
 #include <string>
 #include <fmt/core.h>
@@ -12,192 +14,186 @@ namespace tableprinter {
 
 enum class Align { LEFT, RIGHT, CENTER };
 enum class Separator { LEFT, RIGHT, BOTH, NONE };
-enum class HPolicy { MIN, MAX, SET };
 
 class Component {
 public:
-    Component(const Align &alignment, const size_t &width,
-              const HPolicy &h_policy)
-        : alignment(alignment), h_policy(h_policy), width(width),
-          separator(Separator::NONE), new_line("")
-    {
-    }
+    Component() {}
 
     virtual void format() = 0;
-    virtual void display() = 0;
 
-    void setNewLine(const bool &new_line)
-    {
-        if (new_line)
-            this->new_line = "\n";
-        else
-            this->new_line = "";
-    }
+    class Format {
+    public:
+        Format(const Separator &sep = Separator::NONE,
+               const Align &alignment = Align::CENTER, const size_t &width = 0,
+               const std::string &additional = "")
+            : separator(sep), alignment(alignment), width(width),
+              additional(additional)
+        {
+        }
 
-    Align alignment;
-    HPolicy h_policy;
-    size_t width;
-    Separator separator;
+        const std::string &operator()() { return fmt_string; }
+
+        void format()
+        {
+            std::string fmt = "{:" +
+                              fmt::format("{}{}{}", align_char(alignment),
+                                          width, additional) +
+                              "}";
+            fmt_string = fmt::format(sep_string(separator), fmt);
+        }
+
+        Separator separator;
+        Align alignment;
+        std::string additional;
+        std::string fmt_string;
+        size_t width;
+    };
 
 protected:
-    std::string new_line;
-
-    std::string autoFormat()
-    {
-        std::string w_str;
-        if (separator == Separator::BOTH)
-            w_str = std::to_string(width - 2);
-        else if (separator == Separator::NONE)
-            w_str = std::to_string(width);
-        else
-            w_str = std::to_string(width - 1);
-
-        return format_begin(separator) + format_alignment(alignment) + w_str +
-               format_end(separator) + new_line;
-    }
-
-    static const bool stringReplace(std::string &str, const std::string &from,
-                                    const std::string &to)
-    {
-        size_t start = str.find(from);
-        if (start == std::string::npos) {
-            return false;
-        }
-        str.replace(start, from.length(), to);
-        return true;
-    }
-
-private:
-    static const std::string format_alignment(const Align &index)
+    static const std::string align_char(const Align &index)
     {
         static const std::string a[] = {"<", ">", "^"};
         return a[static_cast<int>(index)];
     }
 
-    static const std::string format_begin(const Separator &index)
+    static const std::string sep_string(const Separator &index)
     {
-        if (index == Separator::LEFT || index == Separator::BOTH)
-            return "|{:";
-        else
-            return "{:";
-    }
-
-    static const std::string format_end(const Separator &index)
-    {
-        if (index == Separator::RIGHT || index == Separator::BOTH)
-            return "}|";
-        else
-            return "}";
+        static const std::string a[] = {"|{}", "{}|", "|{}|", "{}"};
+        return a[static_cast<int>(index)];
     }
 };
 
-class TextBox : public Component {
+class Column : Component {
 public:
-    TextBox(const std::string &text, const Align &alignment,
-            const HPolicy &h_policy, const size_t &width)
-        : Component(alignment, width, h_policy), text(text), fmt_string("")
+    Column()
+        : header_text("HEADER TEXT"), header_fmt({}), data_fmt({}),
+          column_width(header_text.size() + 2)
     {
     }
-
-    void format() override { fmt_string = autoFormat(); }
-
-    void display() override { fmt::print(fmt_string, text); }
-
-    std::string text;
-    std::string fmt_string;
-};
-
-class Title : public TextBox {
-public:
-    Title(const std::string &text, const Align &alignment,
-          const HPolicy &h_policy, const size_t &width)
-        : TextBox(text, alignment, h_policy, width)
+    Column(const std::string &header_text,
+           const Component::Format &header_fmt = {},
+           const Component::Format &data_fmt = {})
+        : header_text(header_text), header_fmt(header_fmt), data_fmt(data_fmt),
+          column_width(header_text.size() + 2)
     {
-        this->separator = Separator::BOTH;
-        this->setNewLine(true);
-        this->format();
-    }
-};
-
-class Headers : public Component {
-public:
-    Headers(const std::vector<std::string> &headers, const Align &alignment,
-            const size_t &cell_width)
-        : Component(alignment, cell_width * headers.size() + 1, HPolicy::MIN)
-    {
-        for (auto &text : headers) {
-            TextBox header{text, alignment, HPolicy::SET, cell_width};
-            header.separator = Separator::LEFT;
-            header.setNewLine(false);
-            this->headers.push_back(header);
-        }
-        this->format();
     }
 
     void format() override
     {
-        for (auto &header : headers) {
-            header.format();
-        }
+        formatHeader();
+        formatData();
     }
+    void formatHeader() { header_fmt.format(); }
+    void formatData() { data_fmt.format(); }
 
-    void display() override
+    void setWidth(const size_t &width = 0)
     {
-        for (auto &header : headers) {
-            header.display();
-        }
-        std::cout << "|\n";
+        if (width == 0 || width < header_text.size() + 2)
+            column_width = header_text.size() + 2;
+        else
+            column_width = width;
+        header_fmt.width = column_width;
+        data_fmt.width = column_width;
+    }
+    const size_t &getWidth() { return column_width; }
+
+    std::string header_text;
+    Component::Format header_fmt;
+    Component::Format data_fmt;
+
+private:
+    size_t column_width;
+};
+
+class Title : public Component {
+public:
+    Title(const std::string &text, const Component::Format &title_fmt = {})
+        : text(text), fmt(title_fmt), width(text.size() + 2)
+    {
     }
 
-    std::vector<TextBox> headers;
+    void format() override
+    {
+        fmt.width = width;
+        fmt.format();
+    }
+
+    void setWidth(const size_t &width = 0)
+    {
+        if (width == 0 || width < text.size() + 2)
+            this->width = text.size() + 2;
+        else
+            this->width = width;
+    }
+
+    const size_t &getWidth() { return width; }
+
+    std::string text;
+    Component::Format fmt;
+
+private:
+    size_t width;
 };
 
 class Printer {
 public:
-    Printer() : table_title(nullptr), table_headers(nullptr), max_table_width(0)
+    Printer(const std::string &title, const std::vector<std::string> &headers)
+        : title(title, {Separator::BOTH, Align::CENTER, title.size() + 2, ""})
     {
+        for (auto &text : headers) {
+            size_t width = text.size() + 2;
+            columns.push_back({text,
+                               {Separator::LEFT, Align::CENTER, width, ""},
+                               {Separator::LEFT, Align::CENTER, width, ""}});
+        }
     }
 
-    ~Printer() {}
-
-    void setTitle(const std::string &title, const Align &alignment,
-                  const HPolicy &h_policy = HPolicy::MAX,
-                  const size_t width = 0)
+    void format()
     {
-        table_title.reset(new Title(title, alignment, h_policy, width));
+        headers_str = "";
+
+        for (auto &col : columns) {
+            col.format();
+            headers_str += fmt::format(col.header_fmt(), col.header_text);
+        }
+        headers_str += "|";
+
+        title.setWidth(std::max(title.getWidth(), headers_str.size() - 2));
+        title.format();
+        title_str = fmt::format(title.fmt(), title.text);
     }
 
-    void setHeaders(const std::vector<std::string> &headers,
-                    const Align &alignment, const size_t width = 0)
+    void printHeading()
     {
-        table_headers.reset(new Headers(headers, alignment, width));
+        format();
+        std::cout << std::string(title_str.size(), '-') << "\n";
+        std::cout << title_str << "\n";
+        std::cout << std::string(std::max(title_str.size(), headers_str.size()),
+                                 '-')
+                  << "\n";
+        std::cout << headers_str << "\n";
+        std::cout << std::string(headers_str.size(), '-') << "\n";
     }
 
-    void display() { formatTitleHeadersBox(); }
+    void printDataRow(const std::vector<double> &data)
+    {
+        if (data.size() != columns.size()) {
+            std::cerr << "error here......\n";
+            return;
+        }
 
-    std::unique_ptr<Title> table_title;
-    std::unique_ptr<Headers> table_headers;
+        for (size_t i = 0; i < data.size(); ++i) {
+            fmt::print(columns[i].data_fmt(), data[i]);
+        }
+        std::cout << "|\n";
+    }
+
+    Title title;
+    std::vector<Column> columns;
 
 private:
-    void formatTitleHeadersBox()
-    {
-        if (table_title != nullptr) {
-            std::cout << std::string(table_title->width, '-') << '\n';
-            this->table_title->display();
-            if (table_headers != nullptr) {
-                size_t width =
-                    std::max(table_title->width, table_headers->width);
-                std::cout << std::string(width, '-') << '\n';
-                this->table_headers->display();
-            }
-        }
-        else if (table_headers != nullptr) {
-            std::cout << std::string(table_headers->width, '-') << '\n';
-            this->table_headers->display();
-        }
-    }
-
-    size_t max_table_width;
+    std::string title_str;
+    std::string headers_str;
 };
 
 } // namespace tableprinter
