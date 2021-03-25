@@ -8,17 +8,15 @@ int main()
 {
     using namespace dmf::tableprinter;
 
-    Printer printer("BTC: INTRADAY TIME SERIES EXAMPLE TITLE",
-                    {"Timestamp", "Open", "High", "Low", "Close", "Volume"});
-    for (auto &col : printer.columns)
-        col.setWidth(15);
-    printer.format();
-    printer.printHeading();
+    std::vector<std::pair<std::string, double>> form = {
+        {"Timestamp:", 1615442400},
+        {"Open:", 9543},
+        {"High:", 9321},
+        {"Low:", 9532}};
 
-    std::vector<double> dat = {1615512600, 698.00, 699.00,
-                               698.71,     699.00, 11276};
-
-    printer.printDataRow(dat);
+    FormPrinter printer("DATA", form);
+    printer.autoFormat();
+    printer.print();
 
     return 0;
 }

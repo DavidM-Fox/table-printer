@@ -7,7 +7,6 @@
 
 // namespace DavidM-Fox
 namespace dmf {
-
 // namespace tableprinter
 namespace tableprinter {
 
@@ -43,9 +42,9 @@ public:
 
         Separator separator;
         Align alignment;
+        size_t width;
         std::string additional;
         std::string fmt_string;
-        size_t width;
     };
 
 protected:
@@ -64,14 +63,15 @@ protected:
 
 class Column : Component {
 public:
-    Column()
-        : header_text("HEADER TEXT"), header_fmt({}), data_fmt({}),
+    Column(const std::string &text)
+        : header_text(text),
+          header_fmt({Separator::LEFT, Align::CENTER, text.size() + 2, ""}),
+          data_fmt({Separator::LEFT, Align::CENTER, text.size() + 2, ""}),
           column_width(header_text.size() + 2)
     {
     }
-    Column(const std::string &header_text,
-           const Component::Format &header_fmt = {},
-           const Component::Format &data_fmt = {})
+    Column(const std::string &header_text, const Component::Format &header_fmt,
+           const Component::Format &data_fmt)
         : header_text(header_text), header_fmt(header_fmt), data_fmt(data_fmt),
           column_width(header_text.size() + 2)
     {
@@ -106,72 +106,126 @@ private:
 
 class Title : public Component {
 public:
-    Title(const std::string &text, const Component::Format &title_fmt = {})
-        : text(text), fmt(title_fmt), width(text.size() + 2)
+    Title(const std::string &text)
+        : text(text), fmt({Separator::BOTH, Align::CENTER, text.size() + 2, ""})
+    {
+    }
+    Title(const std::string &text, const Component::Format &title_fmt)
+        : text(text), fmt(title_fmt)
     {
     }
 
-    void format() override
-    {
-        fmt.width = width;
-        fmt.format();
-    }
+    void format() override { fmt.format(); }
 
-    void setWidth(const size_t &width = 0)
+    void setFmtWidth(const size_t &width = 0)
     {
         if (width == 0 || width < text.size() + 2)
-            this->width = text.size() + 2;
+            fmt.width = text.size() + 2;
         else
-            this->width = width;
+            fmt.width = width;
     }
-
-    const size_t &getWidth() { return width; }
 
     std::string text;
     Component::Format fmt;
-
-private:
-    size_t width;
 };
 
-class Printer {
+typedef std::vector<std::pair<std::string, double>> form;
+
+class FormPrinter {
 public:
-    Printer(const std::string &title, const std::vector<std::string> &headers)
-        : title(title, {Separator::BOTH, Align::CENTER, title.size() + 2, ""})
+    FormPrinter(const std::string &title, const form &data)
+        : title(title), data(data), field_fmt({}), value_fmt({})
     {
-        for (auto &text : headers) {
-            size_t width = text.size() + 2;
-            columns.push_back({text,
-                               {Separator::LEFT, Align::CENTER, width, ""},
-                               {Separator::LEFT, Align::CENTER, width, ""}});
+    }
+
+    void autoFormat()
+    {
+        // Get max width of form field/value
+        size_t max_field_w = 0;
+        size_t max_value_w = 0;
+        for (auto &pair : data) {
+            size_t field_w = (pair.first.size() + 2);
+            size_t value_w = fmt::format("{:.0f}", pair.second).size() + 2;
+            max_field_w = (field_w > max_field_w) ? field_w : max_field_w;
+            max_value_w = (value_w > max_value_w) ? value_w : max_value_w;
+        }
+        field_fmt = {Separator::LEFT, Align::LEFT, max_field_w, ""};
+        field_fmt.format();
+
+        value_fmt = {Separator::RIGHT, Align::RIGHT, max_value_w, ""};
+        value_fmt.format();
+
+        title.setFmtWidth(max_field_w + max_value_w);
+        title.format();
+    }
+
+    void print()
+    {
+        printHeading();
+        printFormData();
+    }
+
+    void printHeading()
+    {
+        title_str = fmt::format(title.fmt(), title.text);
+        size_t title_w = title_str.size();
+        std::cout << std::string(title_w, '-') << "\n" << title_str << "\n";
+        std::cout << std::string(title_w, '-') << "\n";
+    }
+
+    void printFormData()
+    {
+        for (auto &pair : data) {
+            fmt::print(field_fmt(), pair.first);
+            fmt::print(value_fmt(), pair.second);
+            std::cout << "\n";
         }
     }
 
-    void format()
+    Component::Format field_fmt;
+    Component::Format value_fmt;
+
+    Title title;
+    form data;
+
+private:
+    std::string title_str;
+};
+
+class TablePrinter {
+public:
+    TablePrinter(const std::string &title) : title(title) {}
+
+    TablePrinter(const std::string &title,
+                 const std::vector<std::string> &headers)
+        : title(title)
+    {
+        for (auto &text : headers) {
+            columns.push_back({text});
+        }
+    }
+
+    void formatHeading()
     {
         headers_str = "";
-
         for (auto &col : columns) {
             col.format();
             headers_str += fmt::format(col.header_fmt(), col.header_text);
         }
         headers_str += "|";
 
-        title.setWidth(std::max(title.getWidth(), headers_str.size() - 2));
+        title.setFmtWidth(std::max(title.fmt.width, headers_str.size() - 2));
         title.format();
         title_str = fmt::format(title.fmt(), title.text);
     }
 
     void printHeading()
     {
-        format();
-        std::cout << std::string(title_str.size(), '-') << "\n";
-        std::cout << title_str << "\n";
-        std::cout << std::string(std::max(title_str.size(), headers_str.size()),
-                                 '-')
-                  << "\n";
-        std::cout << headers_str << "\n";
-        std::cout << std::string(headers_str.size(), '-') << "\n";
+        size_t title_w = title_str.size();
+        size_t headers_w = headers_str.size();
+        std::cout << std::string(title_w, '-') << "\n" << title_str << "\n";
+        std::cout << std::string(std::max(title_w, headers_w), '-') << "\n";
+        std::cout << headers_str << "\n" << std::string(headers_w, '-') << "\n";
     }
 
     void printDataRow(const std::vector<double> &data)
@@ -186,6 +240,8 @@ public:
         }
         std::cout << "|\n";
     }
+
+    void printFormRow(std::pair<std::string, double> data) {}
 
     Title title;
     std::vector<Column> columns;
